@@ -131,7 +131,7 @@ class StockOut(BaseContent):
 
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
-    selling_price = models.DecimalField(max_digits=10, decimal_places=2)
+    # selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     reason = models.CharField(max_length=10, choices=REASON_CHOICES)
     date = models.DateTimeField(auto_now_add=True)
     removed_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
@@ -161,3 +161,36 @@ class ProfitLossReport(BaseContent):
 
     def __str__(self):
         return f"{self.inventory.item.name} @ {self.location.city.name} ({self.generated_on.date()}"
+
+class Customer(BaseContent):
+    customer_name = models.CharField(max_length=225)
+    customer_phone = models.CharField(max_length=15)
+    customer_email = models.EmailField(unique=True)
+    customer_address = models.TextField()
+
+    def __str__(self):
+        return f"customer {self.customer_name}"
+class Order(BaseContent):
+    ORDER_STATUS = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('shipped', 'Shipped'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    order_id = models.CharField(max_length=10, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True)
+    status = models.CharField(max_length=15, choices=ORDER_STATUS, default='pending')
+    ordered_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order {self.order_id} - {self.customer.customer_name}"
+
+class OrderItem(BaseContent):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # price at time of order
+
+    def __str__(self):
+        return f"{self.quantity} x {self.inventory.item.name} in {self.order.order_id}"
