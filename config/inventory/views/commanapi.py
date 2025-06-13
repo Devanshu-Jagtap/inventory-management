@@ -1,12 +1,12 @@
 from django.shortcuts import render
-from .serializers import SignupSerializer,UserSerializer
+from ..serializers import SignupSerializer,UserSerializer
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from django.contrib.auth import authenticate
-from .utils import success, error
-from .models import CustomUser
+from ..utils import success, error
+from ..models import CustomUser
 
 class SignupAPIView(APIView):
     def post(self, request):
