@@ -1,4 +1,3 @@
-
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from .basecontent import BaseContent
@@ -60,57 +59,48 @@ class Item(BaseContent):
     name = models.CharField(max_length=100)
     sku = models.CharField(max_length=50, unique=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    description = models.TextField(blank=True, null=True)
+    # description = models.TextField(blank=True, null=True) 
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
 
-class Country(BaseContent):
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=5)
-
-    def __str__(self):
-        return self.name
-
-
-class State(BaseContent):
-    name = models.CharField(max_length=100)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE)
-    code = models.CharField(max_length=5)
-
-    def __str__(self):
-        return f"{self.name} ({self.country.name})"
-
-
-class City(BaseContent):
-    name = models.CharField(max_length=100)
-    state = models.ForeignKey(State, on_delete=models.CASCADE)
-    code = models.CharField(max_length=5)
-
-    def __str__(self):
-        return f"{self.name} ({self.state.name})"
-
 class WareHouseLocation(BaseContent):
-    address = models.TextField()
-    country = models.ForeignKey(Country, on_delete=models.CASCADE)
-    state = models.ForeignKey(State, on_delete=models.CASCADE)
-    city = models.ForeignKey(City, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    address = models.TextField(blank=True, null=True)
+    block_capacity = models.PositiveIntegerField(help_text="Total capacity of the warehouse (in units)")
+    used_capacity = models.PositiveIntegerField(default=0)
+
     manager = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
-    capacity = models.PositiveIntegerField()
+
+    def available_capacity(self):
+        return self.block_capacity - self.used_capacity
 
     def __str__(self):
-        return f"{self.address} - {self.city.name}"
+        return f"{self.name}"
     
+
+class Block(BaseContent):
+    warehouse = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    item_capacity = models.PositiveIntegerField(help_text="Capacity of this block")
+    used_capacity = models.PositiveIntegerField(default=0)
+
+    def available_capacity(self):
+        return self.item_capacity - self.used_capacity
+
+    def __str__(self):
+        return f"{self.name} in {self.warehouse.name}"
+
 class Inventory(BaseContent):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    location = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE)
+    block = models.ForeignKey(Block, on_delete=models.CASCADE)
     current_quantity = models.IntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.item.name} @ {self.location.city.name}"
+        return f"{self.item.name} @ {self.block.name}"
     
 class StockIn(BaseContent):
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
@@ -131,7 +121,6 @@ class StockOut(BaseContent):
 
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
-    selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     reason = models.CharField(max_length=10, choices=REASON_CHOICES)
     date = models.DateTimeField(auto_now_add=True)
     removed_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
@@ -160,4 +149,38 @@ class ProfitLossReport(BaseContent):
         verbose_name_plural = "Profit & Loss Reports"
 
     def __str__(self):
-        return f"{self.inventory.item.name} @ {self.location.city.name} ({self.generated_on.date()}"
+        return f"{self.inventory.item.name} @ ({self.generated_on.date()}"
+
+class Customer(BaseContent):
+    customer_name = models.CharField(max_length=225)
+    customer_phone = models.CharField(max_length=15)
+    customer_email = models.EmailField(unique=True)
+    customer_address = models.TextField()
+
+    def __str__(self):
+        return f"customer {self.customer_name}"
+class Order(BaseContent):
+    ORDER_STATUS = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('shipped', 'Shipped'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    order_id = models.CharField(max_length=10, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True)
+    status = models.CharField(max_length=15, choices=ORDER_STATUS, default='pending')
+    ordered_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order {self.order_id} - {self.customer.customer_name}"
+
+class OrderItem(BaseContent):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2)  # price at time of order
+    date = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.quantity} x {self.inventory.item.name} in {self.order.order_id}"
