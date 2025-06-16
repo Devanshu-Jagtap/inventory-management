@@ -67,9 +67,9 @@ class Item(BaseContent):
         return f"{self.name} ({self.sku})"
 
 class WareHouseLocation(BaseContent):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255,null=True,blank=True)
     address = models.TextField(blank=True, null=True)
-    block_capacity = models.PositiveIntegerField(help_text="Total capacity of the warehouse (in units)")
+    block_capacity = models.PositiveIntegerField(help_text="Total capacity of the warehouse (in units)",default=0)
     used_capacity = models.PositiveIntegerField(default=0)
 
     manager = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
@@ -82,7 +82,7 @@ class WareHouseLocation(BaseContent):
     
 
 class Block(BaseContent):
-    warehouse = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE)
+    warehouse = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE,blank=True,null=True)
     name = models.CharField(max_length=100)
     item_capacity = models.PositiveIntegerField(help_text="Capacity of this block")
     used_capacity = models.PositiveIntegerField(default=0)
@@ -94,8 +94,8 @@ class Block(BaseContent):
         return f"{self.name} in {self.warehouse.name}"
 
 class Inventory(BaseContent):
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    block = models.ForeignKey(Block, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE,blank=True,null=True)
+    block = models.ForeignKey(Block, on_delete=models.CASCADE,blank=True,null=True)
     current_quantity = models.IntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -103,7 +103,7 @@ class Inventory(BaseContent):
         return f"{self.item.name} @ {self.block.name}"
     
 class StockIn(BaseContent):
-    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
+    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE,blank=True,null=True)
     quantity = models.PositiveIntegerField()
     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
     date = models.DateTimeField(auto_now_add=True)
@@ -119,7 +119,7 @@ class StockOut(BaseContent):
         ('damage', 'Damage'),
     ]
 
-    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
+    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE,blank=True,null=True)
     quantity = models.PositiveIntegerField()
     reason = models.CharField(max_length=10, choices=REASON_CHOICES)
     date = models.DateTimeField(auto_now_add=True)
@@ -130,8 +130,8 @@ class StockOut(BaseContent):
 
 
 class ProfitLossReport(BaseContent):
-    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
-    location = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE)
+    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE,blank=True,null=True)
+    location = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE,blank=True,null=True)
 
     total_stock_in = models.PositiveIntegerField(default=0)
     total_stock_out = models.PositiveIntegerField(default=0)
@@ -178,9 +178,11 @@ class Order(BaseContent):
 class OrderItem(BaseContent):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE,blank=True,null=True)
     quantity = models.PositiveIntegerField()
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)  # price at time of order
     date = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return f"{self.quantity} x {self.inventory.item.name} in {self.order.order_id}"
+    
+

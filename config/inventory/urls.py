@@ -1,5 +1,8 @@
 from django.urls import path
-from .views.commanapi import SignupAPIView,LoginAPIView,EmployeeSignupAPIView,EmployeeListAPIView
+from .views.commanapi import SignupAPIView,LoginAPIView
+from .views.employeeapis import EmployeeSignupAPIView,EmployeeListAPIView
+from .views.inventorymanagement import InventoryCheckAPIView, StoreItemToInventoryAPIView,ProductWiseQuantityAPIView,TotalAllProductsQuantityAPIView,CreateOrderAPIView,InventoryTransferAPIView
+from .views.commanapi import *
 from django.urls import path
 from .views.adminapi import *
 
@@ -10,6 +13,17 @@ urlpatterns = [
     path('employee-registration/',EmployeeSignupAPIView.as_view(),name='employee-registration'),
     path('employees/', EmployeeListAPIView.as_view(), name='employee-list'),
     path('employees/<int:id>/', EmployeeListAPIView.as_view(), name='employee-detail'),
+
+
+    #Inventory Management
+    path('check-inventory/',InventoryCheckAPIView.as_view()),
+    path('add-inventory/',StoreItemToInventoryAPIView.as_view()),
+    path('product-wise-total/', ProductWiseQuantityAPIView.as_view(), name='product_wise_total'),
+    path('total-quantity/', TotalAllProductsQuantityAPIView.as_view(), name='total_all_products_quantity'),
+    path('create-order/',CreateOrderAPIView.as_view(),name="create-order"),
+    path('stock-out/', InventoryTransferAPIView.as_view(), name='stock-out'),
+
+    
     path('categories/listview/', CategoryListAPIView.as_view(), name='category-list'),
     path('categories/create/', CategoryCreateAPIView.as_view(), name='category-create'),
     path('categories/update/<int:pk>/', CategoryUpdateAPIView.as_view(), name='category-update'),
