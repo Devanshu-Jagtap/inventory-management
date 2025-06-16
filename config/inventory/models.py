@@ -1,4 +1,3 @@
-
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from .basecontent import BaseContent
@@ -60,7 +59,7 @@ class Item(BaseContent):
     name = models.CharField(max_length=100)
     sku = models.CharField(max_length=50, unique=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
-    description = models.TextField(blank=True, null=True) 
+    # description = models.TextField(blank=True, null=True) 
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
 
