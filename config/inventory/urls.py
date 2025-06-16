@@ -2,7 +2,7 @@ from django.urls import path
 from .views.commanapi import SignupAPIView,LoginAPIView
 from .views.employeeapis import EmployeeSignupAPIView,EmployeeListAPIView
 from .views.inventorymanagement import InventoryCheckAPIView, StoreItemToInventoryAPIView,ProductWiseQuantityAPIView,TotalAllProductsQuantityAPIView,CreateOrderAPIView,InventoryTransferAPIView
-from .views.commanapi import SignupAPIView,LoginAPIView,EmployeeSignupAPIView,EmployeeListAPIView
+from .views.commanapi import *
 from django.urls import path
 from .views.adminapi import *
 

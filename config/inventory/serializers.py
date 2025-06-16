@@ -1,6 +1,6 @@
 # users/serializers.py
 from rest_framework import serializers
-from .models import CustomUser,Order,OrderItem,Customer
+from .models import *
 
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
