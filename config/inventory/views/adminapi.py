@@ -6,64 +6,50 @@ from ..serializers import *
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 
-class CategoryCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class CategoryAPIView(APIView):
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(owner=request.user.effective_admin)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-class CategoryListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def get(self, request):
-        categories = Category.objects.all()
+        categories = Category.objects.filter(owner=request.user.effective_admin)
         serializer = CategorySerializer(categories, many=True)
         return Response(serializer.data)
 
-
-class CategoryUpdateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def put(self, request, pk):
-        category = get_object_or_404(Category, pk=pk)
+        category = get_object_or_404(Category, pk=pk,owner=request.user.effective_admin)
         serializer = CategorySerializer(category, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CategoryDeleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def delete(self, request, pk):
-        category = get_object_or_404(Category, pk=pk)
+        category = get_object_or_404(Category, pk=pk,owner=request.user.effective_admin)
         category.delete()
         return Response(
             {"msg": "Category deleted successfully"},
             status=status.HTTP_204_NO_CONTENT
         )
 
-class ItemCreateAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
+class ItemAPIView(APIView):
     def post(self, request):
         serializer = ItemSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(owner=request.user.effective_admin)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ItemListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def get(self, request):
-        items = Item.objects.all()
+        items = Item.objects.filter(owner=request.user.effective_admin)
         serializer = ItemSerializer(items, many=True)
         return Response(serializer.data)
 
-class ItemUpdateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def put(self, request, pk):
-        item = get_object_or_404(Item, pk=pk)
+        item = get_object_or_404(Item, pk=pk,owner=request.user.effective_admin)
         serializer = ItemSerializer(item, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -73,11 +59,8 @@ class ItemUpdateAPIView(APIView):
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        
-class ItemDeleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
     def delete(self, request, pk):
-        item = get_object_or_404(Item, pk=pk)
+        item = get_object_or_404(Item, pk=pk,owner=request.user.effective_admin)
         item.delete()
         return Response({
             "message": "Item deleted successfully",
@@ -87,17 +70,31 @@ class ItemDeleteAPIView(APIView):
 class ItemDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, pk):
-        item = get_object_or_404(Item, pk=pk)
+        item = get_object_or_404(Item, pk=pk,owner=request.user.effective_admin)
         serializer = ItemSerializer(item)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 
 
+# 🔹 Create User
+# class EmployeeCreateAPIView(APIView):
+#     def post(self, request):
+#         data = request.data.copy()
+#         data['admin_owner'] = request.user.effective_admin().id
+#         serializer = CustomUserSerializer(data=data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class EmployeeCreateAPIView(APIView):
     # permission_classes = [IsAuthenticated]
     def post(self, request):
-        serializer = CustomUserSerializer(data=request.data)
+        data = request.data.copy()
+        data['admin_owner'] = request.user.effective_admin.id  # ✅ This is OK
+
+        serializer = CustomUserSerializer(data=data, context={'request': request})  # ✅ Use `data`, not `request.data`
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -142,38 +139,33 @@ class EmployeeDetailAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
-class WareHouseLocationListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# 🔹 List View
+class WareHouseLocationAPIView(APIView):
     def get(self, request):
-        warehouses = WareHouseLocation.objects.all()
+        warehouses = WareHouseLocation.objects.filter(owner=request.user.effective_admin)
         serializer = WareHouseLocationSerializer(warehouses, many=True)
         return Response(serializer.data)
 
 
-
-class WareHouseLocationCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# 🔹 Create View
     def post(self, request):
         serializer = WareHouseLocationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(owner=request.user.effective_admin)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class WareHouseLocationRetrieveAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# 🔹 Retrieve View
     def get(self, request, pk):
-        warehouse = get_object_or_404(WareHouseLocation, pk=pk)
+        warehouse = get_object_or_404(WareHouseLocation, pk=pk,owner=request.user.effective_admin)
         serializer = WareHouseLocationSerializer(warehouse)
         return Response(serializer.data)
 
 
-class WareHouseLocationUpdateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# 🔹 Update View (PUT or PATCH)
     def put(self, request, pk):
-        warehouse = get_object_or_404(WareHouseLocation, pk=pk)
+        warehouse = get_object_or_404(WareHouseLocation, pk=pk,owner=request.user.effective_admin)
         serializer = WareHouseLocationSerializer(warehouse, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -182,9 +174,7 @@ class WareHouseLocationUpdateAPIView(APIView):
 
 
 
-
-class WareHouseLocationDeleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+# 🔹 Delete View
     def delete(self, request, pk):
         warehouse = get_object_or_404(WareHouseLocation, pk=pk)
         warehouse.delete()
@@ -192,9 +182,8 @@ class WareHouseLocationDeleteAPIView(APIView):
 
 
 
-
-class BlockCreateView(APIView):
-    permission_classes = [IsAuthenticated]
+# Create Block
+class BlockAPIView(APIView):
     def post(self, request):
         serializer = BlockSerializer(data=request.data)
         if serializer.is_valid():
@@ -202,15 +191,13 @@ class BlockCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class BlockListView(APIView):
-    # permission_classes = [IsAuthenticated]
+# List All Blocks
     def get(self, request):
         blocks = Block.objects.all()
         serializer = BlockSerializer(blocks, many=True)
         return Response(serializer.data)
 
-class BlockUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+# Update Block
     def put(self, request, pk):
         block = get_object_or_404(Block, pk=pk)
         serializer = BlockSerializer(block, data=request.data)
@@ -220,8 +207,6 @@ class BlockUpdateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Delete Block
-class BlockDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
     def delete(self, request, pk):
         block = get_object_or_404(Block, pk=pk)
         block.delete()

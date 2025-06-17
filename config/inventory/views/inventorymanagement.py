@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from ..utils import success, error
-from ..models import Inventory,Item,Block,StockIn,Customer,Order,OrderItem,StockOut,CustomUser
+from ..models import *
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum
@@ -69,52 +69,97 @@ class InventoryCheckAPIView(APIView):
         }, status=status.HTTP_200_OK)
     
 
+# class StoreItemToInventoryAPIView(APIView): 
+#     def post(self, request):
+#         serializer = InventoryStockInSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#         item_id = serializer.validated_data['item_id']
+#         suggestions = serializer.validated_data['suggestions']
+
+#         try:
+#             item = Item.objects.get(id=item_id)
+#         except Item.DoesNotExist:
+#             return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+
+#         with transaction.atomic():
+#             for suggestion in suggestions:
+#                 block_id = suggestion["block_id"]
+#                 quantity_to_store = suggestion["can_store"]
+
+#                 try:
+#                     block = Block.objects.get(id=block_id)
+#                 except Block.DoesNotExist:
+#                     continue  # skip invalid block
+
+#                 inventory, created = Inventory.objects.get_or_create(
+#                     item=item,
+#                     block=block,
+#                     defaults={"current_quantity": 0}
+#                 )
+
+#                 inventory.current_quantity += quantity_to_store
+#                 inventory.save()
+
+#                 block.used_capacity += quantity_to_store
+#                 block.save()
+
+#                 StockIn.objects.create(
+#                     inventory=inventory,
+#                     block=block,
+#                     quantity=quantity_to_store,
+#                     cost_price=item.unit_price,
+#                     added_by=request.user  # must be an authenticated user
+#                 )
+
+#         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
 class StoreItemToInventoryAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = InventoryStockInSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return error("Invalid order data", serializer.errors)
 
         item_id = serializer.validated_data['item_id']
-        suggestions = serializer.validated_data['suggestions']
+        block_id = serializer.validated_data['block_id']
+        quantity = serializer.validated_data['quantity']
 
         try:
             item = Item.objects.get(id=item_id)
         except Item.DoesNotExist:
-            return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+            return error("Item not found", status_code=status.HTTP_404_NOT_FOUND)
 
+        try:
+            block = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return error("Block not found", status_code=status.HTTP_404_NOT_FOUND)
+
+        if block.available_capacity() < quantity:
+            return error("Not enough available capacity in block")
+        user = CustomUser.objects.get(id=2)
         with transaction.atomic():
-            for suggestion in suggestions:
-                block_id = suggestion["block_id"]
-                quantity_to_store = suggestion["can_store"]
+            inventory, created = Inventory.objects.get_or_create(
+                item=item,
+                block=block,
+                defaults={"current_quantity": 0}
+            )
 
-                try:
-                    block = Block.objects.get(id=block_id)
-                except Block.DoesNotExist:
-                    continue  # skip invalid block
+            inventory.current_quantity += quantity
+            inventory.save()
 
-                inventory, created = Inventory.objects.get_or_create(
-                    item=item,
-                    block=block,
-                    defaults={"current_quantity": 0}
-                )
+            block.used_capacity += quantity
+            block.save()
+            
+            StockIn.objects.create(
+                inventory=inventory,
+                # block=block,
+                quantity=quantity,
+                cost_price=item.unit_price,
+                added_by=user
+            )
 
-                inventory.current_quantity += quantity_to_store
-                inventory.save()
-
-                block.used_capacity += quantity_to_store
-                block.save()
-                default_user = CustomUser.objects.first() 
-                StockIn.objects.create(
-                    inventory=inventory,
-                    # block=block,
-                    quantity=quantity_to_store,
-                    cost_price=item.unit_price,
-                    added_by=default_user # must be an authenticated user
-                )
-
-        return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-
+        return success("Stock successfully added to inventory.", status_code=status.HTTP_201_CREATED)
 
 class ProductWiseQuantityAPIView(APIView):
     def get(self, request):
@@ -132,7 +177,7 @@ class ProductWiseQuantityAPIView(APIView):
                 "total_quantity": total_quantity
             })
 
-        return Response(data, status=status.HTTP_200_OK)
+        return success("Product-wise quantity retrieved successfully", data=data)
     
 class TotalAllProductsQuantityAPIView(APIView):
     def get(self, request):
@@ -140,16 +185,15 @@ class TotalAllProductsQuantityAPIView(APIView):
             total=Sum('current_quantity')
         )['total'] or 0
 
-        return Response(
-            {"total_all_products_quantity": total_quantity},
-            status=status.HTTP_200_OK
+        return success(
+            "Total quantity of all products retrieved successfully",
+            data={"total_all_products_quantity": total_quantity}
         )
-    
 class CreateOrderAPIView(APIView):
     def post(self, request):
         serializer = OrderCreateSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return error("Invalid order data", serializer.errors)
 
         customer_data = serializer.validated_data['customer']
         items_data = serializer.validated_data['items']
@@ -182,11 +226,11 @@ class CreateOrderAPIView(APIView):
                     inventory = Inventory.objects.select_for_update().get(id=inventory_id)
                 except Inventory.DoesNotExist:
                     transaction.set_rollback(True)
-                    return Response({"error": f"Inventory ID {inventory_id} not found"}, status=status.HTTP_404_NOT_FOUND)
+                    return error(f"Inventory ID {inventory_id} not found", status_code=status.HTTP_404_NOT_FOUND)
 
                 if inventory.current_quantity < quantity:
                     transaction.set_rollback(True)
-                    return Response({"error": f"Insufficient stock for {inventory.item.name}"}, status=status.HTTP_400_BAD_REQUEST)
+                    return error(f"Insufficient stock for {inventory.item.name}")
 
                 # Reduce stock
                 inventory.current_quantity -= quantity
@@ -209,24 +253,24 @@ class CreateOrderAPIView(APIView):
                     removed_by=request.user if request.user.is_authenticated else None
                 )
 
-            return Response({"message": "Order placed successfully", "order_id": order.order_id}, status=status.HTTP_201_CREATED)
+            return success("Order placed successfully", data={"order_id": order.order_id}, status_code=status.HTTP_201_CREATED)
         
 
     def get(self, request, order_id):
         try:
             order = Order.objects.get(order_id=order_id)
         except Order.DoesNotExist:
-            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+            return error("Order not found", status_code=status.HTTP_404_NOT_FOUND)
 
         serializer = OrderDetailSerializer(order)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return success("Order retrieved successfully", data=serializer.data)
 
 
 class InventoryTransferAPIView(APIView):
     def post(self, request):
         serializer = StockOutSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return error("Invalid data", serializer.errors)
 
         inventory_id = serializer.validated_data["inventory_id"]
         quantity = serializer.validated_data["quantity"]
@@ -236,13 +280,13 @@ class InventoryTransferAPIView(APIView):
         try:
             inventory = Inventory.objects.get(id=inventory_id)
         except Inventory.DoesNotExist:
-            return Response({"error": "Inventory not found."}, status=status.HTTP_404_NOT_FOUND)
+            return error("Inventory not found", status_code=status.HTTP_404_NOT_FOUND)
 
         # Check stock availability
         if inventory.current_quantity < quantity:
-            return Response({
-                "error": f"Not enough stock. Available: {inventory.current_quantity}"
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return error(
+                f"Not enough stock. Available: {inventory.current_quantity}"
+            )
 
         # Deduct quantity
         inventory.current_quantity -= quantity
@@ -424,3 +468,4 @@ class StoreItemToInventoryAPIView(APIView):
             )
 
         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
+        return success(f"{quantity} units removed for reason '{reason}'.")
