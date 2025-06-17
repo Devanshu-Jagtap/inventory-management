@@ -114,12 +114,61 @@ class InventoryCheckAPIView(APIView):
 #                 )
 
 #         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-class StoreItemToInventoryAPIView(APIView):
+
+# class StoreItemToInventoryAPIView(APIView):
+#     # permission_classes = [IsAuthenticated]
+#     def post(self, request):
+#         serializer = InventoryStockInSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return error("Invalid order data", serializer.errors)
+
+#         item_id = serializer.validated_data['item_id']
+#         block_id = serializer.validated_data['block_id']
+#         quantity = serializer.validated_data['quantity']
+
+#         try:
+#             item = Item.objects.get(id=item_id)
+#         except Item.DoesNotExist:
+#             return error("Item not found", status_code=status.HTTP_404_NOT_FOUND)
+
+#         try:
+#             block = Block.objects.get(id=block_id)
+#         except Block.DoesNotExist:
+#             return error("Block not found", status_code=status.HTTP_404_NOT_FOUND)
+
+#         if block.available_capacity() < quantity:
+#             return error("Not enough available capacity in block")
+#         user = CustomUser.objects.get(id=2)
+#         with transaction.atomic():
+#             inventory, created = Inventory.objects.get_or_create(
+#                 item=item,
+#                 block=block,
+#                 defaults={"current_quantity": 0}
+#             )
+
+#             inventory.current_quantity += quantity
+#             inventory.save()
+
+#             block.used_capacity += quantity
+#             block.save()
+            
+#             StockIn.objects.create(
+#                 inventory=inventory,
+#                 # block=block,
+#                 quantity=quantity,
+#                 cost_price=item.unit_price,
+#                 added_by=user
+#             )
+
+#         return success("Stock successfully added to inventory.", status_code=status.HTTP_201_CREATED)
+    
+class CreateInventoryAPIView(APIView):
     # permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = InventoryStockInSerializer(data=request.data)
         if not serializer.is_valid():
-            return error("Invalid order data", serializer.errors)
+            return error("Invalid input", serializer.errors)
 
         item_id = serializer.validated_data['item_id']
         block_id = serializer.validated_data['block_id']
@@ -128,38 +177,88 @@ class StoreItemToInventoryAPIView(APIView):
         try:
             item = Item.objects.get(id=item_id)
         except Item.DoesNotExist:
-            return error("Item not found", status_code=status.HTTP_404_NOT_FOUND)
+            return error("Item not found", status.HTTP_404_NOT_FOUND)
 
         try:
             block = Block.objects.get(id=block_id)
         except Block.DoesNotExist:
-            return error("Block not found", status_code=status.HTTP_404_NOT_FOUND)
+            return error("Block not found", status.HTTP_404_NOT_FOUND)
+
+        if Inventory.objects.filter(item=item, block=block).exists():
+            return error("Inventory for this item and block already exists")
 
         if block.available_capacity() < quantity:
-            return error("Not enough available capacity in block")
-        user = CustomUser.objects.get(id=2)
+            return error("Not enough block capacity")
+
+        user = CustomUser.objects.get(id=2)  # request.user if using auth
+
         with transaction.atomic():
-            inventory, created = Inventory.objects.get_or_create(
+            inventory = Inventory.objects.create(
                 item=item,
                 block=block,
-                defaults={"current_quantity": 0}
+                current_quantity=quantity
             )
-
-            inventory.current_quantity += quantity
-            inventory.save()
-
             block.used_capacity += quantity
             block.save()
-            
+
             StockIn.objects.create(
                 inventory=inventory,
-                # block=block,
                 quantity=quantity,
                 cost_price=item.unit_price,
                 added_by=user
             )
 
-        return success("Stock successfully added to inventory.", status_code=status.HTTP_201_CREATED)
+        return success("Inventory created successfully", status.HTTP_201_CREATED)
+
+
+class UpdateInventoryAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = InventoryStockInSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error("Invalid input", serializer.errors)
+
+        item_id = serializer.validated_data['item_id']
+        block_id = serializer.validated_data['block_id']
+        quantity = serializer.validated_data['quantity']
+
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return error("Item not found", status.HTTP_404_NOT_FOUND)
+
+        try:
+            block = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return error("Block not found", status.HTTP_404_NOT_FOUND)
+
+        try:
+            inventory = Inventory.objects.get(item=item, block=block)
+        except Inventory.DoesNotExist:
+            return error("Inventory does not exist, please create it first", status.HTTP_404_NOT_FOUND)
+
+        if block.available_capacity() < quantity:
+            return error("Not enough available capacity in block")
+
+        user = CustomUser.objects.get(id=2)  # request.user
+
+        with transaction.atomic():
+            inventory.current_quantity += quantity
+            inventory.save()
+
+            block.used_capacity += quantity
+            block.save()
+
+            StockIn.objects.create(
+                inventory=inventory,
+                quantity=quantity,
+                cost_price=item.unit_price,
+                added_by=user
+            )
+
+        return success("Inventory quantity updated successfully", status.HTTP_200_OK)
+
 
 class ProductWiseQuantityAPIView(APIView):
     def get(self, request):
@@ -189,7 +288,74 @@ class TotalAllProductsQuantityAPIView(APIView):
             "Total quantity of all products retrieved successfully",
             data={"total_all_products_quantity": total_quantity}
         )
+# class CreateOrderAPIView(APIView):
+#     def post(self, request):
+#         serializer = OrderCreateSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return error("Invalid order data", serializer.errors)
+
+#         customer_data = serializer.validated_data['customer']
+#         items_data = serializer.validated_data['items']
+
+#         # Get or create customer by phone number
+#         customer, created = Customer.objects.get_or_create(
+#             customer_phone=customer_data['customer_phone'],
+#             defaults={
+#                 'customer_name': customer_data['customer_name'],
+#                 'customer_email': customer_data['customer_email'],
+#                 'customer_address': customer_data['customer_address']
+#             }
+#         )
+
+#         with transaction.atomic():
+#             # Generate unique order ID (e.g. 8 characters)
+#             order_id = get_random_string(length=8).upper()
+#             order = Order.objects.create(
+#                 order_id=order_id,
+#                 customer=customer,
+#                 status='confirmed'
+#             )
+
+#             for item_data in items_data:
+#                 inventory_id = item_data['inventory_id']
+#                 quantity = item_data['quantity']
+#                 selling_price = item_data['selling_price']
+
+#                 try:
+#                     inventory = Inventory.objects.select_for_update().get(id=inventory_id)
+#                 except Inventory.DoesNotExist:
+#                     transaction.set_rollback(True)
+#                     return error(f"Inventory ID {inventory_id} not found", status_code=status.HTTP_404_NOT_FOUND)
+
+#                 if inventory.current_quantity < quantity:
+#                     transaction.set_rollback(True)
+#                     return error(f"Insufficient stock for {inventory.item.name}")
+
+#                 # Reduce stock
+#                 inventory.current_quantity -= quantity
+#                 inventory.save()
+
+#                 # Create OrderItem
+#                 OrderItem.objects.create(
+#                     order=order,
+#                     inventory=inventory,
+#                     item=inventory.item,
+#                     quantity=quantity,
+#                     selling_price=selling_price
+#                 )
+
+#                 # Create StockOut
+#                 StockOut.objects.create(
+#                     inventory=inventory,
+#                     quantity=quantity,
+#                     reason='sale',
+#                     removed_by=request.user if request.user.is_authenticated else None
+#                 )
+
+#             return success("Order placed successfully", data={"order_id": order.order_id}, status_code=status.HTTP_201_CREATED)
+        
 class CreateOrderAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = OrderCreateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -198,9 +364,12 @@ class CreateOrderAPIView(APIView):
         customer_data = serializer.validated_data['customer']
         items_data = serializer.validated_data['items']
 
-        # Get or create customer by phone number
+        admin_user = request.user.effective_admin  
+
+        # Get or create customer by phone number, assigning owner
         customer, created = Customer.objects.get_or_create(
             customer_phone=customer_data['customer_phone'],
+            owner=admin_user,
             defaults={
                 'customer_name': customer_data['customer_name'],
                 'customer_email': customer_data['customer_email'],
@@ -209,12 +378,13 @@ class CreateOrderAPIView(APIView):
         )
 
         with transaction.atomic():
-            # Generate unique order ID (e.g. 8 characters)
+            # Generate unique order ID
             order_id = get_random_string(length=8).upper()
             order = Order.objects.create(
                 order_id=order_id,
                 customer=customer,
-                status='confirmed'
+                status='confirmed',
+                owner=admin_user  # ✅ Set the order owner
             )
 
             for item_data in items_data:
@@ -255,7 +425,6 @@ class CreateOrderAPIView(APIView):
 
             return success("Order placed successfully", data={"order_id": order.order_id}, status_code=status.HTTP_201_CREATED)
         
-
     def get(self, request, order_id):
         try:
             order = Order.objects.get(order_id=order_id)
@@ -301,7 +470,9 @@ class InventoryTransferAPIView(APIView):
             removed_by=request.user
         )
 
-        return Response({"message": f"{quantity} units removed for reason '{reason}'."}, status=status.HTTP_200_OK)
+        # return Response({"message": f"{quantity} units removed for reason '{reason}'."}, status=status.HTTP_200_OK)
+        return success(f"{quantity} units removed for reason '{reason}'.")
+
 
 class ItemsInBlockAPIView(APIView):
     def get(self, request, block_id):
@@ -422,50 +593,68 @@ class ExportTodayProfitLossCSVAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class StoreItemToInventoryAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
-    def post(self, request):
-        serializer = InventoryStockInSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# class StoreItemToInventoryAPIView(APIView):
+#     # permission_classes = [IsAuthenticated]
+#     def post(self, request):
+#         serializer = InventoryStockInSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        item_id = serializer.validated_data['item_id']
-        block_id = serializer.validated_data['block_id']
-        quantity = serializer.validated_data['quantity']
+#         item_id = serializer.validated_data['item_id']
+#         block_id = serializer.validated_data['block_id']
+#         quantity = serializer.validated_data['quantity']
 
-        try:
-            item = Item.objects.get(id=item_id)
-        except Item.DoesNotExist:
-            return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+#         try:
+#             item = Item.objects.get(id=item_id)
+#         except Item.DoesNotExist:
+#             return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            block = Block.objects.get(id=block_id)
-        except Block.DoesNotExist:
-            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+#         try:
+#             block = Block.objects.get(id=block_id)
+#         except Block.DoesNotExist:
+#             return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if block.available_capacity() < quantity:
-            return Response({"error": "Not enough available capacity in block"}, status=status.HTTP_400_BAD_REQUEST)
-        user = CustomUser.objects.get(id=2)
-        with transaction.atomic():
-            inventory, created = Inventory.objects.get_or_create(
-                item=item,
-                block=block,
-                defaults={"current_quantity": 0}
-            )
+#         if block.available_capacity() < quantity:
+#             return Response({"error": "Not enough available capacity in block"}, status=status.HTTP_400_BAD_REQUEST)
+#         user = CustomUser.objects.get(id=2)
+#         with transaction.atomic():
+#             inventory, created = Inventory.objects.get_or_create(
+#                 item=item,
+#                 block=block,
+#                 defaults={"current_quantity": 0}
+#             )
 
-            inventory.current_quantity += quantity
-            inventory.save()
+#             inventory.current_quantity += quantity
+#             inventory.save()
 
-            block.used_capacity += quantity
-            block.save()
+#             block.used_capacity += quantity
+#             block.save()
             
-            StockIn.objects.create(
-                inventory=inventory,
-                # block=block,
-                quantity=quantity,
-                cost_price=item.unit_price,
-                added_by=user
-            )
+#             StockIn.objects.create(
+#                 inventory=inventory,
+#                 # block=block,
+#                 quantity=quantity,
+#                 cost_price=item.unit_price,
+#                 added_by=user
+#             )
 
-        return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-        return success(f"{quantity} units removed for reason '{reason}'.")
+#         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
+        
+class OrderListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        admin_user = request.user.effective_admin  # Use property, not method
+        orders = Order.objects.filter(owner=admin_user).select_related('customer').prefetch_related('items')
+        serializer = OrderListSerializer(orders, many=True)
+        return Response(serializer.data)
+    
+
+class CustomerListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        admin_user = request.user.effective_admin
+        customers = Customer.objects.filter(owner=admin_user)
+        serializer = CustomerSerializer(customers, many=True)
+        return Response(serializer.data)

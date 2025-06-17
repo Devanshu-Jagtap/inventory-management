@@ -19,11 +19,15 @@ urlpatterns = [
 
     #Inventory Management
     path('inventory-management/check-inventory/',InventoryCheckAPIView.as_view()),
-    path('inventory-management/add-inventory/',StoreItemToInventoryAPIView.as_view()),
+    # path('inventory-management/add-inventory/',StoreItemToInventoryAPIView.as_view()),
+    path('inventory-management/create-inventory/',CreateInventoryAPIView.as_view()),
+    path('inventory-management/update-inventory/',UpdateInventoryAPIView.as_view()),
     path('inventory-management/product-wise-total/', ProductWiseQuantityAPIView.as_view(), name='product_wise_total'),
     path('inventory-management/total-quantity/', TotalAllProductsQuantityAPIView.as_view(), name='total_all_products_quantity'),
     path('inventory-management/create-order/',CreateOrderAPIView.as_view(),name="create-order"),
+    path('inventory-management/orders-list/',OrderListAPIView.as_view()),
     path('inventory-management/stock-out/', InventoryTransferAPIView.as_view(), name='stock-out'),
+    path('inventory-management/customers/', CustomerListAPIView.as_view(), name='customer-list'),
 
     
     path('categories/listview/', CategoryAPIView.as_view(), name='category-list'),
@@ -50,6 +54,10 @@ urlpatterns = [
     path('blocks/listview/', BlockAPIView.as_view()),
     path('blocks/update/<int:pk>/', BlockAPIView.as_view()),
     path('blocks/delete/<int:pk>/', BlockAPIView.as_view()),
+    path('block-items/<int:block_id>/',ItemsInBlockAPIView.as_view()),
+    
+
+    
 
 ]
     

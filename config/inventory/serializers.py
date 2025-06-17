@@ -142,3 +142,16 @@ class InventoryStockInSerializer(serializers.Serializer):
     item_id = serializers.IntegerField()
     block_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'item', 'quantity', 'selling_price', 'date']
+
+class OrderListSerializer(serializers.ModelSerializer):
+    customer = CustomerSerializer()
+    items = OrderItemSerializer(many=True)
+
+    class Meta:
+        model = Order
+        fields = ['id', 'order_id', 'customer', 'status', 'ordered_at', 'items']

@@ -164,6 +164,12 @@ class ProfitLossReport(BaseContent):
         return f"{self.generated_on.date()}"
 
 class Customer(BaseContent):
+    owner = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        limit_choices_to={'user_type': CustomUser.UserType.ADMIN},
+        related_name='customers',null=True,blank=True
+    )
     customer_name = models.CharField(max_length=225)
     customer_phone = models.CharField(max_length=15)
     customer_email = models.EmailField(unique=True)
@@ -172,11 +178,15 @@ class Customer(BaseContent):
     def __str__(self):
         return f"customer {self.customer_name}"
 class Order(BaseContent):
+    owner = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        limit_choices_to={'user_type': CustomUser.UserType.ADMIN},
+        related_name='orders',null=True,blank=True
+    )
     ORDER_STATUS = [
         ('pending', 'Pending'),
-        ('confirmed', 'Confirmed'),
         ('shipped', 'Shipped'),
-        ('cancelled', 'Cancelled'),
     ]
 
     order_id = models.CharField(max_length=10, unique=True)

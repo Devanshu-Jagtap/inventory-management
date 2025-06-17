@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 
 class CategoryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid():
