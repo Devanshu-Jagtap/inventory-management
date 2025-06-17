@@ -87,23 +87,18 @@ class ItemSerializer(serializers.ModelSerializer):
 
 
 
-
 class CustomUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)  # don't return password
+
     class Meta:
         model = CustomUser
-        fields = '__all__'
-        extra_kwargs = {
-            'password': {'write_only': True}
-        }
+        fields = ['id', 'name', 'email', 'user_type', 'password']
 
     def create(self, validated_data):
-        user = CustomUser.objects.create_user(
-            email=validated_data['email'],
-            name=validated_data['name'],
-            password=validated_data['password'],
-            number=validated_data.get('number'),
-            user_type=validated_data.get('user_type', CustomUser.UserType.EMPLOYEE),
-        )
+        password = validated_data.pop('password')
+        user = CustomUser(**validated_data)
+        user.set_password(password)  # hashes the password
+        user.save()
         return user
 
 
@@ -118,3 +113,28 @@ class BlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = Block
         fields = '__all__'
+
+
+class BlockInventoryItemSerializer(serializers.ModelSerializer):
+    item_id = serializers.IntegerField(source='item.id')
+    item_name = serializers.CharField(source='item.name')
+    item_sku = serializers.CharField(source='item.sku')
+    category = serializers.CharField(source='item.category.name')
+    unit_price = serializers.DecimalField(source='item.unit_price', max_digits=10, decimal_places=2)
+    current_quantity = serializers.IntegerField()
+
+    class Meta:
+        model = Inventory
+        fields = ['item_id',
+            'item_name',
+            'item_sku',
+            'category',
+            'unit_price',
+            'current_quantity']
+
+
+
+class InventoryStockInSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField()
+    block_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)

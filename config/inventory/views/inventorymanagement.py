@@ -1,15 +1,22 @@
 from django.shortcuts import render
-from ..serializers import InventoryStockInSerializer,CustomerSerializer,OrderCreateSerializer,OrderItemInputSerializer,OrderDetailSerializer,StockOutSerializer
+from ..serializers import *
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from ..utils import success, error
-from ..models import Inventory,Item,Block,StockIn,Customer,Order,OrderItem,StockOut
+from ..models import Inventory,Item,Block,StockIn,Customer,Order,OrderItem,StockOut,CustomUser
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum
 from django.db import transaction
 from django.utils.crypto import get_random_string
+from django.shortcuts import get_object_or_404
+import csv
+import os
+from django.utils.timezone import now
+from django.conf import settings
+
+from django.db.models import Sum, F, DecimalField
 
 class InventoryCheckAPIView(APIView):
     def post(self, request):
@@ -97,13 +104,13 @@ class StoreItemToInventoryAPIView(APIView):
 
                 block.used_capacity += quantity_to_store
                 block.save()
-
+                default_user = CustomUser.objects.first() 
                 StockIn.objects.create(
                     inventory=inventory,
-                    block=block,
+                    # block=block,
                     quantity=quantity_to_store,
                     cost_price=item.unit_price,
-                    added_by=request.user  # must be an authenticated user
+                    added_by=default_user # must be an authenticated user
                 )
 
         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
@@ -251,3 +258,169 @@ class InventoryTransferAPIView(APIView):
         )
 
         return Response({"message": f"{quantity} units removed for reason '{reason}'."}, status=status.HTTP_200_OK)
+
+class ItemsInBlockAPIView(APIView):
+    def get(self, request, block_id):
+        block = get_object_or_404(Block, id=block_id)
+        inventory_items = Inventory.objects.filter(block=block).select_related('item')
+        block_available=int(block.item_capacity)-int(block.used_capacity)
+        serializer = BlockInventoryItemSerializer(inventory_items, many=True)
+        return Response({
+            "block_id": block.id,
+            "block_name": block.name,
+            "block_capacity":block.item_capacity,
+            "block_used_capacity":block.used_capacity,
+            "block_available_capacity":block_available,
+            "items": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+
+def generate_daily_profit_loss_report():
+    today = timezone.now().date()
+
+    # Get all unique items that have inventory entries
+    unique_item_ids = Inventory.objects.values_list('item', flat=True).distinct()
+
+    for item_id in unique_item_ids:
+        inventories = Inventory.objects.filter(item=item_id)
+
+        # StockIn data for all inventories of this item
+        stock_in_data = StockIn.objects.filter(
+            inventory__in=inventories,
+            created_at__date=today
+        ).aggregate(
+            total_in=Sum('quantity'),
+            total_cost=Sum(F('quantity') * F('cost_price'), output_field=DecimalField())
+        )
+
+        # OrderItem data for all inventories of this item
+        order_items_data = OrderItem.objects.filter(
+            inventory__in=inventories,
+            date__date=today
+        ).aggregate(
+            total_out=Sum('quantity'),
+            total_revenue=Sum(F('quantity') * F('selling_price'), output_field=DecimalField())
+        )
+
+        total_stock_in = stock_in_data['total_in'] or 0
+        total_stock_out = order_items_data['total_out'] or 0
+        total_cost = stock_in_data['total_cost'] or 0
+        total_revenue = order_items_data['total_revenue'] or 0
+        profit = total_revenue - total_cost
+
+        # For reporting, you may want to save one ProfitLossReport per item
+        ProfitLossReport.objects.update_or_create(
+            item_id=item_id,
+            generated_on=today,
+            defaults={
+                'total_stock_in': total_stock_in,
+                'total_stock_out': total_stock_out,
+                'total_cost': total_cost,
+                'total_revenue': total_revenue,
+                'profit': profit
+            }
+        )
+
+    return f"Profit & Loss reports generated for {len(unique_item_ids)} items."
+
+
+
+
+
+
+
+class ExportTodayProfitLossCSVAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        today = timezone.now().date()
+        reports = ProfitLossReport.objects.filter(
+            generated_on__date=today
+        ).select_related('inventory__item', 'inventory__block')
+
+        if not reports.exists():
+            return Response({"error": "No report found for today"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prepare file path
+        file_name = f"profit_loss_report_{today}.csv"
+        report_dir = os.path.join(settings.MEDIA_ROOT, "reports")
+        os.makedirs(report_dir, exist_ok=True)
+        file_path = os.path.join(report_dir, file_name)
+
+        # Write CSV
+        with open(file_path, mode='w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                'Inventory ID', 'Item Name', 'Block Name',
+                'Total Stock In', 'Total Stock Out',
+                'Total Cost', 'Total Revenue', 'Profit', 'Generated On'
+            ])
+            for report in reports:
+                writer.writerow([
+                    report.inventory.id,
+                    report.inventory.item.name,
+                    report.inventory.block.name if report.inventory.block else '',
+                    report.total_stock_in,
+                    report.total_stock_out,
+                    float(report.total_cost),
+                    float(report.total_revenue),
+                    float(report.profit),
+                    report.generated_on.strftime("%Y-%m-%d")
+                ])
+
+        # Build and return full URL
+        download_url = f"{settings.MEDIA_URL}reports/{file_name}"
+        full_url = request.build_absolute_uri(download_url)
+
+        return Response({
+            "message": "CSV generated successfully",
+            "download_url": full_url
+        }, status=status.HTTP_200_OK)
+
+
+class StoreItemToInventoryAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = InventoryStockInSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        item_id = serializer.validated_data['item_id']
+        block_id = serializer.validated_data['block_id']
+        quantity = serializer.validated_data['quantity']
+
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            block = Block.objects.get(id=block_id)
+        except Block.DoesNotExist:
+            return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if block.available_capacity() < quantity:
+            return Response({"error": "Not enough available capacity in block"}, status=status.HTTP_400_BAD_REQUEST)
+        user = CustomUser.objects.get(id=2)
+        with transaction.atomic():
+            inventory, created = Inventory.objects.get_or_create(
+                item=item,
+                block=block,
+                defaults={"current_quantity": 0}
+            )
+
+            inventory.current_quantity += quantity
+            inventory.save()
+
+            block.used_capacity += quantity
+            block.save()
+            
+            StockIn.objects.create(
+                inventory=inventory,
+                # block=block,
+                quantity=quantity,
+                cost_price=item.unit_price,
+                added_by=user
+            )
+
+        return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)

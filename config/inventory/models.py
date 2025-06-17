@@ -130,9 +130,7 @@ class StockOut(BaseContent):
 
 
 class ProfitLossReport(BaseContent):
-    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE,blank=True,null=True)
-    location = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE,blank=True,null=True)
-
+    item = models.ForeignKey(Item, on_delete=models.CASCADE) 
     total_stock_in = models.PositiveIntegerField(default=0)
     total_stock_out = models.PositiveIntegerField(default=0)
 
@@ -144,12 +142,12 @@ class ProfitLossReport(BaseContent):
     generated_on = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('inventory', 'location', 'generated_on')
+        
         verbose_name = "Profit & Loss Report"
         verbose_name_plural = "Profit & Loss Reports"
 
     def __str__(self):
-        return f"{self.inventory.item.name} @ ({self.generated_on.date()}"
+        return f"{self.generated_on.date()}"
 
 class Customer(BaseContent):
     customer_name = models.CharField(max_length=225)
@@ -169,7 +167,7 @@ class Order(BaseContent):
 
     order_id = models.CharField(max_length=10, unique=True)
     customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True)
-    status = models.CharField(max_length=15, choices=ORDER_STATUS, default='pending')
+    status = models.CharField(max_length=15, choices=ORDER_STATUS, default='confirmed')
     ordered_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

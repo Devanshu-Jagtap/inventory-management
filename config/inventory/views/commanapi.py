@@ -6,7 +6,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from django.contrib.auth import authenticate
 from ..utils import success, error
-from ..models import CustomUser
+from ..models import *
+from django.db.models import Sum
+from rest_framework.response import Response
+from rest_framework import status
 
 class SignupAPIView(APIView):
     def post(self, request):
@@ -48,7 +51,8 @@ class LoginAPIView(APIView):
         if not email or not password:
             return error("Email and password are required")
 
-        user = authenticate(request, email=email, password=password)
+        user =  authenticate(request, email=email, password=password)
+        print(user)
 
         if user is not None:
             if not user.is_active:
@@ -71,3 +75,46 @@ class LoginAPIView(APIView):
 
         return error("Invalid email or password", status_code=status.HTTP_401_UNAUTHORIZED)
     
+
+
+class OverallItemWiseProfitAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
+    def get(self, request):
+       
+        qs = ProfitLossReport.objects.values(
+            'inventory__item__name'
+        ).annotate(
+            total_profit=Sum('profit')
+        ).filter(total_profit__gte=0).order_by('inventory__item__name')
+
+        
+        data = [
+            {
+                "item": entry['inventory__item__name'],
+                "profit": float(entry['total_profit'] or 0)
+            }
+            for entry in qs
+        ]
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+
+
+class CategoryWiseProfitAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        qs = ProfitLossReport.objects.values(
+            'inventory__item__category__name'
+        ).annotate(
+            total_profit=Sum('profit')
+        ).filter(total_profit__gte=0).order_by('inventory__item__category__name')
+
+        data = [
+            {
+                "category": entry['inventory__item__category__name'],
+                "profit": float(entry['total_profit'] or 0)
+            }
+            for entry in qs
+        ]
+        return Response(data, status=status.HTTP_200_OK)
