@@ -27,11 +27,14 @@ class InventoryStockInSuggestionSerializer(serializers.Serializer):
     block_id = serializers.IntegerField()
     can_store = serializers.IntegerField(min_value=1)
 
+# class InventoryStockInSerializer(serializers.Serializer):
+#     item_id = serializers.IntegerField()
+#     suggestions = InventoryStockInSuggestionSerializer(many=True)
+
 class InventoryStockInSerializer(serializers.Serializer):
     item_id = serializers.IntegerField()
-    suggestions = InventoryStockInSuggestionSerializer(many=True)
-
-
+    block_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
 
 class CustomerSerializer(serializers.Serializer):
     customer_name = serializers.CharField(max_length=225)
@@ -84,6 +87,7 @@ class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
         fields = '__all__'
+        read_only_fields = ['owner']
 
 
 
@@ -103,6 +107,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             number=validated_data.get('number'),
             user_type=validated_data.get('user_type', CustomUser.UserType.EMPLOYEE),
+            admin_owner=validated_data.get('admin_owner') 
         )
         return user
 

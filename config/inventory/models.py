@@ -35,6 +35,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)  # Needed for Django admin
     date_joined = models.DateTimeField(auto_now_add=True)
 
+    admin_owner = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='employees',
+        limit_choices_to={'user_type': UserType.ADMIN}
+    )
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['name']
 
@@ -42,12 +48,18 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+    @property
+    def effective_admin(self):
+        """Return self if user is admin, else return their linked admin"""
+        return self if self.user_type == self.UserType.ADMIN else self.admin_owner
 
 
 
 #Master
 
 class Category(BaseContent):
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='categories',null=True, blank=True,)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
 
@@ -56,6 +68,7 @@ class Category(BaseContent):
 
 
 class Item(BaseContent):
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='item',null=True, blank=True,)
     name = models.CharField(max_length=100)
     sku = models.CharField(max_length=50, unique=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
@@ -67,6 +80,7 @@ class Item(BaseContent):
         return f"{self.name} ({self.sku})"
 
 class WareHouseLocation(BaseContent):
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='warehouse',null=True, blank=True,)
     name = models.CharField(max_length=255,null=True,blank=True)
     address = models.TextField(blank=True, null=True)
     block_capacity = models.PositiveIntegerField(help_text="Total capacity of the warehouse (in units)",default=0)
@@ -80,7 +94,7 @@ class WareHouseLocation(BaseContent):
     def __str__(self):
         return f"{self.name}"
     
-
+    
 class Block(BaseContent):
     warehouse = models.ForeignKey(WareHouseLocation, on_delete=models.CASCADE,blank=True,null=True)
     name = models.CharField(max_length=100)
