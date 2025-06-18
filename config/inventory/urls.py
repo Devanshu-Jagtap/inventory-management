@@ -28,6 +28,10 @@ urlpatterns = [
     path('inventory-management/orders-list/',OrderListAPIView.as_view()),
     path('inventory-management/stock-out/', InventoryTransferAPIView.as_view(), name='stock-out'),
     path('inventory-management/customers/', CustomerListAPIView.as_view(), name='customer-list'),
+    path('inventory-management/summary/', InventorySummaryAPIView.as_view(), name='inventory_summary'),
+    
+    path('charts/block-pie-chart/',BlockWiseProfitAPIView.as_view(),name='Block-pie-chart'),
+    path('charts/daily-chart/',WeeklySalesChartAPIView.as_view(),name='daily-chart'),
 
     
     path('categories/listview/', CategoryAPIView.as_view(), name='category-list'),

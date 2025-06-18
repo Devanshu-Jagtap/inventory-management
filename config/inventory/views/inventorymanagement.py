@@ -7,7 +7,9 @@ from ..utils import success, error
 from ..models import *
 from rest_framework.response import Response
 from django.utils import timezone
-from django.db.models import Sum
+from django.utils.timezone import now, timedelta
+from django.db.models.functions import TruncDate
+from django.db.models import F, Sum, DecimalField, ExpressionWrapper
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from django.shortcuts import get_object_or_404
@@ -15,8 +17,9 @@ import csv
 import os
 from django.utils.timezone import now
 from django.conf import settings
-
+from decimal import Decimal
 from django.db.models import Sum, F, DecimalField
+import calendar
 
 class InventoryCheckAPIView(APIView):
     def post(self, request):
@@ -540,11 +543,6 @@ def generate_daily_profit_loss_report():
     return f"Profit & Loss reports generated for {len(unique_item_ids)} items."
 
 
-
-
-
-
-
 class ExportTodayProfitLossCSVAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
@@ -592,54 +590,7 @@ class ExportTodayProfitLossCSVAPIView(APIView):
             "download_url": full_url
         }, status=status.HTTP_200_OK)
 
-
-# class StoreItemToInventoryAPIView(APIView):
-#     # permission_classes = [IsAuthenticated]
-#     def post(self, request):
-#         serializer = InventoryStockInSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#         item_id = serializer.validated_data['item_id']
-#         block_id = serializer.validated_data['block_id']
-#         quantity = serializer.validated_data['quantity']
-
-#         try:
-#             item = Item.objects.get(id=item_id)
-#         except Item.DoesNotExist:
-#             return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         try:
-#             block = Block.objects.get(id=block_id)
-#         except Block.DoesNotExist:
-#             return Response({"error": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         if block.available_capacity() < quantity:
-#             return Response({"error": "Not enough available capacity in block"}, status=status.HTTP_400_BAD_REQUEST)
-#         user = CustomUser.objects.get(id=2)
-#         with transaction.atomic():
-#             inventory, created = Inventory.objects.get_or_create(
-#                 item=item,
-#                 block=block,
-#                 defaults={"current_quantity": 0}
-#             )
-
-#             inventory.current_quantity += quantity
-#             inventory.save()
-
-#             block.used_capacity += quantity
-#             block.save()
-            
-#             StockIn.objects.create(
-#                 inventory=inventory,
-#                 # block=block,
-#                 quantity=quantity,
-#                 cost_price=item.unit_price,
-#                 added_by=user
-#             )
-
-#         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-        
+     
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -658,3 +609,138 @@ class CustomerListAPIView(APIView):
         customers = Customer.objects.filter(owner=admin_user)
         serializer = CustomerSerializer(customers, many=True)
         return Response(serializer.data)
+    
+
+class InventorySummaryAPIView(APIView):
+    def get(self, request):
+        # Total items = sum of all stock in all blocks (including sold + unsold)
+        total_stock_in = (
+            Inventory.objects.aggregate(total=Sum('current_quantity'))['total'] or 0
+        )
+
+        # Total unsold = current quantity in all blocks
+        total_unsold = total_stock_in
+
+        # Total sold from StockOut with reason = 'sale'
+        total_sold = (
+            StockOut.objects.filter(reason='sale')
+            .aggregate(total=Sum('quantity'))['total'] or 0
+        )
+
+        # Total damaged from StockOut with reason = 'damage'
+        total_damaged = (
+            StockOut.objects.filter(reason='damage')
+            .aggregate(total=Sum('quantity'))['total'] or 0
+        )
+
+        response_data = {
+            "total_items": total_unsold + total_sold,  # Total handled
+            "total_sold": total_sold,
+            "total_unsold": total_unsold,
+            "total_damaged": total_damaged
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+
+class BlockWiseProfitAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.effective_admin  # supports multi-admin ownership
+
+        # Step 1: Annotate OrderItems with profit
+        order_items = OrderItem.objects.filter(order__owner=user).annotate(
+            cost_price=F('item__unit_price'),
+            profit=ExpressionWrapper(
+                (F('selling_price') - F('item__unit_price')) * F('quantity'),
+                output_field=DecimalField()
+            )
+        )
+
+        
+
+        # Step 2: Aggregate profits per block
+        block_profits = {}
+        for item in order_items:
+            block = getattr(item.inventory, 'block', None)
+            if block:
+                block_name = block.name
+                block_profits[block_name] = block_profits.get(block_name, Decimal('0')) + item.profit
+
+        total_profit = sum(block_profits.values())
+        print(total_profit)
+        print(block_profits)
+        # Step 3: Format response
+        data = []
+        for block_name, profit in block_profits.items():
+            percent = (profit / total_profit * 100) if total_profit > 0 else 0
+            data.append({
+                "block": block_name,
+                "profit": round(profit, 2),
+                "percent": round(percent, 2)
+            })
+
+        return success("Block-wise profit percentage fetched successfully", {
+            "total_profit": round(total_profit, 2),
+            "block_wise_data": data
+        })
+    
+
+class WeeklySalesChartAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.effective_admin
+        today = now().date()
+        start_of_week = today - timedelta(days=today.weekday())  # Monday
+        start_of_prev_week = start_of_week - timedelta(days=7)
+
+        def get_weekly_data(start_date):
+            end_date = start_date + timedelta(days=6)
+            sales = (
+                OrderItem.objects.filter(order__owner=user, date__date__range=(start_date, end_date))
+                .annotate(
+                    revenue=ExpressionWrapper(
+                        F("selling_price") * F("quantity"), output_field=DecimalField()
+                    )
+                )
+                .annotate(day=TruncDate("date"))
+                .values("day")
+                .annotate(total=Sum("revenue"))
+                .order_by("day")
+            )
+
+            # Map date → total sales
+            daily_map = {sale["day"]: float(sale["total"]) for sale in sales}
+
+            data = []
+            total = 0
+            for i in range(7):
+                day = start_date + timedelta(days=i)
+                amount = daily_map.get(day, 0)
+                data.append(amount)
+                total += amount
+            return data, total
+
+        # Fetch sales data
+        current_week_data, current_week_total = get_weekly_data(start_of_week)
+        prev_week_data, prev_week_total = get_weekly_data(start_of_prev_week)
+
+        # Prepare response
+        categories = list(calendar.day_name)  # ['Monday', 'Tuesday', ..., 'Sunday']
+        return success("Weekly sales fetched successfully", {
+            "categories": categories,
+            "series": [
+                {
+                    "name": "Current Week",
+                    "data": current_week_data,
+                    "total": round(current_week_total, 2)
+                },
+                {
+                    "name": "Previous Week",
+                    "data": prev_week_data,
+                    "total": round(prev_week_total, 2)
+                }
+            ]
+        })
