@@ -37,6 +37,7 @@ class CategoryAPIView(APIView):
         )
 
 class ItemAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = ItemSerializer(data=request.data)
         if serializer.is_valid():
@@ -142,6 +143,7 @@ class EmployeeDetailAPIView(APIView):
 
 # 🔹 List View
 class WareHouseLocationAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         warehouses = WareHouseLocation.objects.filter(owner=request.user.effective_admin)
         serializer = WareHouseLocationSerializer(warehouses, many=True)
@@ -185,6 +187,7 @@ class WareHouseLocationAPIView(APIView):
 
 # Create Block
 class BlockAPIView(APIView):
+    # permission_classes = [IsAuthenticated]    
     def post(self, request):
         serializer = BlockSerializer(data=request.data)
         if serializer.is_valid():

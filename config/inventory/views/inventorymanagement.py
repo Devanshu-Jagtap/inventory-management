@@ -20,151 +20,7 @@ from django.conf import settings
 from decimal import Decimal
 from django.db.models import Sum, F, DecimalField
 import calendar
-
-class InventoryCheckAPIView(APIView):
-    def post(self, request):
-        item_id = request.data.get('item_id')
-        quantity = int(request.data.get('quantity', 0))
-        
-        if not item_id or quantity <= 0:
-            return error("Invalid Input", status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            item = Item.objects.get(id=item_id)
-        except Item.DoesNotExist:
-            return error("Item not found", status.HTTP_404_NOT_FOUND)
-        
-        suggestions = []
-        remaining_quantity = quantity
-
-        blocks = Block.objects.all()
-
-        for block in blocks:
-            available_capacity = block.item_capacity - block.used_capacity
-
-            if available_capacity <= 0:
-                continue  # Block is full
-
-            if available_capacity >= remaining_quantity:
-                suggestions.append({
-                    "block_id": block.id,
-                    "block_name": block.name,
-                    "available_space": available_capacity,
-                    "can_store": remaining_quantity
-                })
-                remaining_quantity = 0
-                break
-            else:
-                suggestions.append({
-                    "block_id": block.id,
-                    "block_name": block.name,
-                    "available_space": available_capacity,
-                    "can_store": available_capacity
-                })
-                remaining_quantity -= available_capacity
-
-        if remaining_quantity > 0:
-            return error("Not enough space to store all items", status.HTTP_400_BAD_REQUEST)
-        
-        return Response({
-            "total_required_quantity": quantity,
-            "suggestions": suggestions
-        }, status=status.HTTP_200_OK)
-    
-
-# class StoreItemToInventoryAPIView(APIView): 
-#     def post(self, request):
-#         serializer = InventoryStockInSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#         item_id = serializer.validated_data['item_id']
-#         suggestions = serializer.validated_data['suggestions']
-
-#         try:
-#             item = Item.objects.get(id=item_id)
-#         except Item.DoesNotExist:
-#             return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         with transaction.atomic():
-#             for suggestion in suggestions:
-#                 block_id = suggestion["block_id"]
-#                 quantity_to_store = suggestion["can_store"]
-
-#                 try:
-#                     block = Block.objects.get(id=block_id)
-#                 except Block.DoesNotExist:
-#                     continue  # skip invalid block
-
-#                 inventory, created = Inventory.objects.get_or_create(
-#                     item=item,
-#                     block=block,
-#                     defaults={"current_quantity": 0}
-#                 )
-
-#                 inventory.current_quantity += quantity_to_store
-#                 inventory.save()
-
-#                 block.used_capacity += quantity_to_store
-#                 block.save()
-
-#                 StockIn.objects.create(
-#                     inventory=inventory,
-#                     block=block,
-#                     quantity=quantity_to_store,
-#                     cost_price=item.unit_price,
-#                     added_by=request.user  # must be an authenticated user
-#                 )
-
-#         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-
-# class StoreItemToInventoryAPIView(APIView):
-#     # permission_classes = [IsAuthenticated]
-#     def post(self, request):
-#         serializer = InventoryStockInSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return error("Invalid order data", serializer.errors)
-
-#         item_id = serializer.validated_data['item_id']
-#         block_id = serializer.validated_data['block_id']
-#         quantity = serializer.validated_data['quantity']
-
-#         try:
-#             item = Item.objects.get(id=item_id)
-#         except Item.DoesNotExist:
-#             return error("Item not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#         try:
-#             block = Block.objects.get(id=block_id)
-#         except Block.DoesNotExist:
-#             return error("Block not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#         if block.available_capacity() < quantity:
-#             return error("Not enough available capacity in block")
-#         user = CustomUser.objects.get(id=2)
-#         with transaction.atomic():
-#             inventory, created = Inventory.objects.get_or_create(
-#                 item=item,
-#                 block=block,
-#                 defaults={"current_quantity": 0}
-#             )
-
-#             inventory.current_quantity += quantity
-#             inventory.save()
-
-#             block.used_capacity += quantity
-#             block.save()
-            
-#             StockIn.objects.create(
-#                 inventory=inventory,
-#                 # block=block,
-#                 quantity=quantity,
-#                 cost_price=item.unit_price,
-#                 added_by=user
-#             )
-
-#         return success("Stock successfully added to inventory.", status_code=status.HTTP_201_CREATED)
-    
+     
 class CreateInventoryAPIView(APIView):
     # permission_classes = [IsAuthenticated]
 
@@ -264,6 +120,7 @@ class UpdateInventoryAPIView(APIView):
 
 
 class ProductWiseQuantityAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         items = Item.objects.all()
         data = []
@@ -282,6 +139,7 @@ class ProductWiseQuantityAPIView(APIView):
         return success("Product-wise quantity retrieved successfully", data=data)
     
 class TotalAllProductsQuantityAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         total_quantity = Inventory.objects.aggregate(
             total=Sum('current_quantity')
@@ -290,73 +148,7 @@ class TotalAllProductsQuantityAPIView(APIView):
         return success(
             "Total quantity of all products retrieved successfully",
             data={"total_all_products_quantity": total_quantity}
-        )
-# class CreateOrderAPIView(APIView):
-#     def post(self, request):
-#         serializer = OrderCreateSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return error("Invalid order data", serializer.errors)
-
-#         customer_data = serializer.validated_data['customer']
-#         items_data = serializer.validated_data['items']
-
-#         # Get or create customer by phone number
-#         customer, created = Customer.objects.get_or_create(
-#             customer_phone=customer_data['customer_phone'],
-#             defaults={
-#                 'customer_name': customer_data['customer_name'],
-#                 'customer_email': customer_data['customer_email'],
-#                 'customer_address': customer_data['customer_address']
-#             }
-#         )
-
-#         with transaction.atomic():
-#             # Generate unique order ID (e.g. 8 characters)
-#             order_id = get_random_string(length=8).upper()
-#             order = Order.objects.create(
-#                 order_id=order_id,
-#                 customer=customer,
-#                 status='confirmed'
-#             )
-
-#             for item_data in items_data:
-#                 inventory_id = item_data['inventory_id']
-#                 quantity = item_data['quantity']
-#                 selling_price = item_data['selling_price']
-
-#                 try:
-#                     inventory = Inventory.objects.select_for_update().get(id=inventory_id)
-#                 except Inventory.DoesNotExist:
-#                     transaction.set_rollback(True)
-#                     return error(f"Inventory ID {inventory_id} not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#                 if inventory.current_quantity < quantity:
-#                     transaction.set_rollback(True)
-#                     return error(f"Insufficient stock for {inventory.item.name}")
-
-#                 # Reduce stock
-#                 inventory.current_quantity -= quantity
-#                 inventory.save()
-
-#                 # Create OrderItem
-#                 OrderItem.objects.create(
-#                     order=order,
-#                     inventory=inventory,
-#                     item=inventory.item,
-#                     quantity=quantity,
-#                     selling_price=selling_price
-#                 )
-
-#                 # Create StockOut
-#                 StockOut.objects.create(
-#                     inventory=inventory,
-#                     quantity=quantity,
-#                     reason='sale',
-#                     removed_by=request.user if request.user.is_authenticated else None
-#                 )
-
-#             return success("Order placed successfully", data={"order_id": order.order_id}, status_code=status.HTTP_201_CREATED)
-        
+        )     
 class CreateOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
@@ -439,6 +231,7 @@ class CreateOrderAPIView(APIView):
 
 
 class InventoryTransferAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = StockOutSerializer(data=request.data)
         if not serializer.is_valid():
@@ -478,6 +271,7 @@ class InventoryTransferAPIView(APIView):
 
 
 class ItemsInBlockAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request, block_id):
         block = get_object_or_404(Block, id=block_id)
         inventory_items = Inventory.objects.filter(block=block).select_related('item')
@@ -592,6 +386,7 @@ class ExportTodayProfitLossCSVAPIView(APIView):
 
      
 class OrderListAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -602,6 +397,7 @@ class OrderListAPIView(APIView):
     
 
 class CustomerListAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -612,6 +408,7 @@ class CustomerListAPIView(APIView):
     
 
 class InventorySummaryAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         # Total items = sum of all stock in all blocks (including sold + unsold)
         total_stock_in = (
@@ -647,7 +444,7 @@ class BlockWiseProfitAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user.effective_admin  # supports multi-admin ownership
+        user = request.user.effective_admin  
 
         # Step 1: Annotate OrderItems with profit
         order_items = OrderItem.objects.filter(order__owner=user).annotate(
@@ -658,8 +455,6 @@ class BlockWiseProfitAPIView(APIView):
             )
         )
 
-        
-
         # Step 2: Aggregate profits per block
         block_profits = {}
         for item in order_items:
@@ -669,8 +464,6 @@ class BlockWiseProfitAPIView(APIView):
                 block_profits[block_name] = block_profits.get(block_name, Decimal('0')) + item.profit
 
         total_profit = sum(block_profits.values())
-        print(total_profit)
-        print(block_profits)
         # Step 3: Format response
         data = []
         for block_name, profit in block_profits.items():
@@ -707,40 +500,85 @@ class WeeklySalesChartAPIView(APIView):
                 )
                 .annotate(day=TruncDate("date"))
                 .values("day")
-                .annotate(total=Sum("revenue"))
+                .annotate(
+                    total=Sum("revenue"),
+                    total_quantity=Sum("quantity")
+                )
                 .order_by("day")
             )
 
-            # Map date → total sales
-            daily_map = {sale["day"]: float(sale["total"]) for sale in sales}
+            # Map date → total sales and quantity
+            daily_map = {
+                sale["day"]: {
+                    "amount": float(sale["total"]),
+                    "quantity": sale["total_quantity"]
+                }
+                for sale in sales
+            }
 
-            data = []
-            total = 0
+            amount_data = []
+            quantity_data = []
+            total_amount = 0
+            total_quantity = 0
             for i in range(7):
                 day = start_date + timedelta(days=i)
-                amount = daily_map.get(day, 0)
-                data.append(amount)
-                total += amount
-            return data, total
+                day_data = daily_map.get(day, {"amount": 0, "quantity": 0})
+                amount_data.append(day_data["amount"])
+                quantity_data.append(day_data["quantity"])
+                total_amount += day_data["amount"]
+                total_quantity += day_data["quantity"]
 
-        # Fetch sales data
-        current_week_data, current_week_total = get_weekly_data(start_of_week)
-        prev_week_data, prev_week_total = get_weekly_data(start_of_prev_week)
+            return amount_data, quantity_data, total_amount, total_quantity
 
-        # Prepare response
-        categories = list(calendar.day_name)  # ['Monday', 'Tuesday', ..., 'Sunday']
-        return success("Weekly sales fetched successfully", {
+        # Weekly data
+        current_amount, current_qty, current_total, current_total_qty = get_weekly_data(start_of_week)
+        prev_amount, prev_qty, prev_total, prev_total_qty = get_weekly_data(start_of_prev_week)
+
+        # Day labels
+        categories = list(calendar.day_name)  # Monday → Sunday
+
+        return success("Weekly sales and quantity data fetched successfully", {
             "categories": categories,
             "series": [
                 {
                     "name": "Current Week",
-                    "data": current_week_data,
-                    "total": round(current_week_total, 2)
+                    "data": current_amount,
+                    "quantity": current_qty,
+                    "total": round(current_total, 2),
+                    "total_quantity": current_total_qty
                 },
                 {
                     "name": "Previous Week",
-                    "data": prev_week_data,
-                    "total": round(prev_week_total, 2)
+                    "data": prev_amount,
+                    "quantity": prev_qty,
+                    "total": round(prev_total, 2),
+                    "total_quantity": prev_total_qty
                 }
             ]
         })
+    
+
+class TopSellingProductsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.effective_admin
+
+        top_items = (
+            OrderItem.objects
+            .filter(order__owner=user)
+            .values("item__name", "item__sku")
+            .annotate(quantity_sold=Sum("quantity"))
+            .order_by("-quantity_sold")[:5]
+        )
+
+        data = [
+            {
+                "item_name": item["item__name"],
+                "sku": item["item__sku"],
+                "quantity_sold": item["quantity_sold"]
+            }
+            for item in top_items
+        ]
+
+        return success("Top selling products fetched successfully", data)
