@@ -160,7 +160,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 
 CRONJOBS = [
-    ('*/10 * * * *', 'inventory.views.inventorymanagement.generate_daily_profit_loss_report'),
+    ('0 0 * * *', 'inventory.views.inventorymanagement.generate_daily_profit_loss_report'),
     
     
     

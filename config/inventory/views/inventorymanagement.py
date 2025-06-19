@@ -71,102 +71,9 @@ class InventoryCheckAPIView(APIView):
             "suggestions": suggestions
         }, status=status.HTTP_200_OK)
     
-
-# class StoreItemToInventoryAPIView(APIView): 
-#     def post(self, request):
-#         serializer = InventoryStockInSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#         item_id = serializer.validated_data['item_id']
-#         suggestions = serializer.validated_data['suggestions']
-
-#         try:
-#             item = Item.objects.get(id=item_id)
-#         except Item.DoesNotExist:
-#             return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#         with transaction.atomic():
-#             for suggestion in suggestions:
-#                 block_id = suggestion["block_id"]
-#                 quantity_to_store = suggestion["can_store"]
-
-#                 try:
-#                     block = Block.objects.get(id=block_id)
-#                 except Block.DoesNotExist:
-#                     continue  # skip invalid block
-
-#                 inventory, created = Inventory.objects.get_or_create(
-#                     item=item,
-#                     block=block,
-#                     defaults={"current_quantity": 0}
-#                 )
-
-#                 inventory.current_quantity += quantity_to_store
-#                 inventory.save()
-
-#                 block.used_capacity += quantity_to_store
-#                 block.save()
-
-#                 StockIn.objects.create(
-#                     inventory=inventory,
-#                     block=block,
-#                     quantity=quantity_to_store,
-#                     cost_price=item.unit_price,
-#                     added_by=request.user  # must be an authenticated user
-#                 )
-
-#         return Response({"message": "Stock successfully added to inventory."}, status=status.HTTP_201_CREATED)
-
-# class StoreItemToInventoryAPIView(APIView):
-#     # permission_classes = [IsAuthenticated]
-#     def post(self, request):
-#         serializer = InventoryStockInSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return error("Invalid order data", serializer.errors)
-
-#         item_id = serializer.validated_data['item_id']
-#         block_id = serializer.validated_data['block_id']
-#         quantity = serializer.validated_data['quantity']
-
-#         try:
-#             item = Item.objects.get(id=item_id)
-#         except Item.DoesNotExist:
-#             return error("Item not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#         try:
-#             block = Block.objects.get(id=block_id)
-#         except Block.DoesNotExist:
-#             return error("Block not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#         if block.available_capacity() < quantity:
-#             return error("Not enough available capacity in block")
-#         user = CustomUser.objects.get(id=2)
-#         with transaction.atomic():
-#             inventory, created = Inventory.objects.get_or_create(
-#                 item=item,
-#                 block=block,
-#                 defaults={"current_quantity": 0}
-#             )
-
-#             inventory.current_quantity += quantity
-#             inventory.save()
-
-#             block.used_capacity += quantity
-#             block.save()
-            
-#             StockIn.objects.create(
-#                 inventory=inventory,
-#                 # block=block,
-#                 quantity=quantity,
-#                 cost_price=item.unit_price,
-#                 added_by=user
-#             )
-
-#         return success("Stock successfully added to inventory.", status_code=status.HTTP_201_CREATED)
     
 class CreateInventoryAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = InventoryStockInSerializer(data=request.data)
@@ -215,7 +122,7 @@ class CreateInventoryAPIView(APIView):
 
 
 class UpdateInventoryAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = InventoryStockInSerializer(data=request.data)
@@ -291,72 +198,9 @@ class TotalAllProductsQuantityAPIView(APIView):
             "Total quantity of all products retrieved successfully",
             data={"total_all_products_quantity": total_quantity}
         )
-# class CreateOrderAPIView(APIView):
-#     def post(self, request):
-#         serializer = OrderCreateSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return error("Invalid order data", serializer.errors)
 
-#         customer_data = serializer.validated_data['customer']
-#         items_data = serializer.validated_data['items']
 
-#         # Get or create customer by phone number
-#         customer, created = Customer.objects.get_or_create(
-#             customer_phone=customer_data['customer_phone'],
-#             defaults={
-#                 'customer_name': customer_data['customer_name'],
-#                 'customer_email': customer_data['customer_email'],
-#                 'customer_address': customer_data['customer_address']
-#             }
-#         )
 
-#         with transaction.atomic():
-#             # Generate unique order ID (e.g. 8 characters)
-#             order_id = get_random_string(length=8).upper()
-#             order = Order.objects.create(
-#                 order_id=order_id,
-#                 customer=customer,
-#                 status='confirmed'
-#             )
-
-#             for item_data in items_data:
-#                 inventory_id = item_data['inventory_id']
-#                 quantity = item_data['quantity']
-#                 selling_price = item_data['selling_price']
-
-#                 try:
-#                     inventory = Inventory.objects.select_for_update().get(id=inventory_id)
-#                 except Inventory.DoesNotExist:
-#                     transaction.set_rollback(True)
-#                     return error(f"Inventory ID {inventory_id} not found", status_code=status.HTTP_404_NOT_FOUND)
-
-#                 if inventory.current_quantity < quantity:
-#                     transaction.set_rollback(True)
-#                     return error(f"Insufficient stock for {inventory.item.name}")
-
-#                 # Reduce stock
-#                 inventory.current_quantity -= quantity
-#                 inventory.save()
-
-#                 # Create OrderItem
-#                 OrderItem.objects.create(
-#                     order=order,
-#                     inventory=inventory,
-#                     item=inventory.item,
-#                     quantity=quantity,
-#                     selling_price=selling_price
-#                 )
-
-#                 # Create StockOut
-#                 StockOut.objects.create(
-#                     inventory=inventory,
-#                     quantity=quantity,
-#                     reason='sale',
-#                     removed_by=request.user if request.user.is_authenticated else None
-#                 )
-
-#             return success("Order placed successfully", data={"order_id": order.order_id}, status_code=status.HTTP_201_CREATED)
-        
 class CreateOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
@@ -369,7 +213,7 @@ class CreateOrderAPIView(APIView):
 
         admin_user = request.user.effective_admin  
 
-        # Get or create customer by phone number, assigning owner
+        
         customer, created = Customer.objects.get_or_create(
             customer_phone=customer_data['customer_phone'],
             owner=admin_user,
@@ -381,13 +225,13 @@ class CreateOrderAPIView(APIView):
         )
 
         with transaction.atomic():
-            # Generate unique order ID
+            
             order_id = get_random_string(length=8).upper()
             order = Order.objects.create(
                 order_id=order_id,
                 customer=customer,
                 status='confirmed',
-                owner=admin_user  # ✅ Set the order owner
+                owner=admin_user  
             )
 
             for item_data in items_data:
@@ -405,11 +249,11 @@ class CreateOrderAPIView(APIView):
                     transaction.set_rollback(True)
                     return error(f"Insufficient stock for {inventory.item.name}")
 
-                # Reduce stock
+                
                 inventory.current_quantity -= quantity
                 inventory.save()
 
-                # Create OrderItem
+               
                 OrderItem.objects.create(
                     order=order,
                     inventory=inventory,
@@ -418,7 +262,7 @@ class CreateOrderAPIView(APIView):
                     selling_price=selling_price
                 )
 
-                # Create StockOut
+                
                 StockOut.objects.create(
                     inventory=inventory,
                     quantity=quantity,
@@ -448,23 +292,22 @@ class InventoryTransferAPIView(APIView):
         quantity = serializer.validated_data["quantity"]
         reason = serializer.validated_data["reason"]
 
-        # Get the inventory record
+       
         try:
             inventory = Inventory.objects.get(id=inventory_id)
         except Inventory.DoesNotExist:
             return error("Inventory not found", status_code=status.HTTP_404_NOT_FOUND)
 
-        # Check stock availability
+        
         if inventory.current_quantity < quantity:
             return error(
                 f"Not enough stock. Available: {inventory.current_quantity}"
             )
 
-        # Deduct quantity
         inventory.current_quantity -= quantity
         inventory.save()
 
-        # Record the stock out
+      
         StockOut.objects.create(
             inventory=inventory,
             quantity=quantity,
@@ -473,7 +316,7 @@ class InventoryTransferAPIView(APIView):
             removed_by=request.user
         )
 
-        # return Response({"message": f"{quantity} units removed for reason '{reason}'."}, status=status.HTTP_200_OK)
+        
         return success(f"{quantity} units removed for reason '{reason}'.")
 
 
@@ -497,13 +340,12 @@ class ItemsInBlockAPIView(APIView):
 def generate_daily_profit_loss_report():
     today = timezone.now().date()
 
-    # Get all unique items that have inventory entries
     unique_item_ids = Inventory.objects.values_list('item', flat=True).distinct()
 
     for item_id in unique_item_ids:
         inventories = Inventory.objects.filter(item=item_id)
 
-        # StockIn data for all inventories of this item
+        
         stock_in_data = StockIn.objects.filter(
             inventory__in=inventories,
             created_at__date=today
@@ -512,7 +354,6 @@ def generate_daily_profit_loss_report():
             total_cost=Sum(F('quantity') * F('cost_price'), output_field=DecimalField())
         )
 
-        # OrderItem data for all inventories of this item
         order_items_data = OrderItem.objects.filter(
             inventory__in=inventories,
             date__date=today
@@ -527,7 +368,7 @@ def generate_daily_profit_loss_report():
         total_revenue = order_items_data['total_revenue'] or 0
         profit = total_revenue - total_cost
 
-        # For reporting, you may want to save one ProfitLossReport per item
+        
         ProfitLossReport.objects.update_or_create(
             item_id=item_id,
             generated_on=today,
@@ -543,36 +384,39 @@ def generate_daily_profit_loss_report():
     return f"Profit & Loss reports generated for {len(unique_item_ids)} items."
 
 
+
+
 class ExportTodayProfitLossCSVAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request):
         today = timezone.now().date()
+
         reports = ProfitLossReport.objects.filter(
             generated_on__date=today
-        ).select_related('inventory__item', 'inventory__block')
+        ).select_related('item')
 
         if not reports.exists():
-            return Response({"error": "No report found for today"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "No report found for today"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        # Prepare file path
         file_name = f"profit_loss_report_{today}.csv"
         report_dir = os.path.join(settings.MEDIA_ROOT, "reports")
         os.makedirs(report_dir, exist_ok=True)
         file_path = os.path.join(report_dir, file_name)
 
-        # Write CSV
         with open(file_path, mode='w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([
-                'Inventory ID', 'Item Name', 'Block Name',
+                'Item Name',
                 'Total Stock In', 'Total Stock Out',
                 'Total Cost', 'Total Revenue', 'Profit', 'Generated On'
             ])
             for report in reports:
                 writer.writerow([
-                    report.inventory.id,
-                    report.inventory.item.name,
-                    report.inventory.block.name if report.inventory.block else '',
+                    report.item.name,
                     report.total_stock_in,
                     report.total_stock_out,
                     float(report.total_cost),
@@ -581,7 +425,6 @@ class ExportTodayProfitLossCSVAPIView(APIView):
                     report.generated_on.strftime("%Y-%m-%d")
                 ])
 
-        # Build and return full URL
         download_url = f"{settings.MEDIA_URL}reports/{file_name}"
         full_url = request.build_absolute_uri(download_url)
 
@@ -590,12 +433,12 @@ class ExportTodayProfitLossCSVAPIView(APIView):
             "download_url": full_url
         }, status=status.HTTP_200_OK)
 
-     
+
 class OrderListAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        admin_user = request.user.effective_admin  # Use property, not method
+        admin_user = request.user.effective_admin  
         orders = Order.objects.filter(owner=admin_user).select_related('customer').prefetch_related('items')
         serializer = OrderListSerializer(orders, many=True)
         return Response(serializer.data)
@@ -613,28 +456,28 @@ class CustomerListAPIView(APIView):
 
 class InventorySummaryAPIView(APIView):
     def get(self, request):
-        # Total items = sum of all stock in all blocks (including sold + unsold)
+        
         total_stock_in = (
             Inventory.objects.aggregate(total=Sum('current_quantity'))['total'] or 0
         )
 
-        # Total unsold = current quantity in all blocks
+        
         total_unsold = total_stock_in
 
-        # Total sold from StockOut with reason = 'sale'
+        
         total_sold = (
             StockOut.objects.filter(reason='sale')
             .aggregate(total=Sum('quantity'))['total'] or 0
         )
 
-        # Total damaged from StockOut with reason = 'damage'
+       
         total_damaged = (
             StockOut.objects.filter(reason='damage')
             .aggregate(total=Sum('quantity'))['total'] or 0
         )
 
         response_data = {
-            "total_items": total_unsold + total_sold,  # Total handled
+            "total_items": total_unsold + total_sold, 
             "total_sold": total_sold,
             "total_unsold": total_unsold,
             "total_damaged": total_damaged
@@ -647,9 +490,7 @@ class BlockWiseProfitAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user.effective_admin  # supports multi-admin ownership
-
-        # Step 1: Annotate OrderItems with profit
+        user = request.user.effective_admin  
         order_items = OrderItem.objects.filter(order__owner=user).annotate(
             cost_price=F('item__unit_price'),
             profit=ExpressionWrapper(
@@ -660,7 +501,6 @@ class BlockWiseProfitAPIView(APIView):
 
         
 
-        # Step 2: Aggregate profits per block
         block_profits = {}
         for item in order_items:
             block = getattr(item.inventory, 'block', None)
@@ -671,7 +511,7 @@ class BlockWiseProfitAPIView(APIView):
         total_profit = sum(block_profits.values())
         print(total_profit)
         print(block_profits)
-        # Step 3: Format response
+       
         data = []
         for block_name, profit in block_profits.items():
             percent = (profit / total_profit * 100) if total_profit > 0 else 0
@@ -693,7 +533,7 @@ class WeeklySalesChartAPIView(APIView):
     def get(self, request):
         user = request.user.effective_admin
         today = now().date()
-        start_of_week = today - timedelta(days=today.weekday())  # Monday
+        start_of_week = today - timedelta(days=today.weekday())  
         start_of_prev_week = start_of_week - timedelta(days=7)
 
         def get_weekly_data(start_date):
@@ -711,7 +551,6 @@ class WeeklySalesChartAPIView(APIView):
                 .order_by("day")
             )
 
-            # Map date → total sales
             daily_map = {sale["day"]: float(sale["total"]) for sale in sales}
 
             data = []
@@ -723,12 +562,12 @@ class WeeklySalesChartAPIView(APIView):
                 total += amount
             return data, total
 
-        # Fetch sales data
+        
         current_week_data, current_week_total = get_weekly_data(start_of_week)
         prev_week_data, prev_week_total = get_weekly_data(start_of_prev_week)
 
-        # Prepare response
-        categories = list(calendar.day_name)  # ['Monday', 'Tuesday', ..., 'Sunday']
+     
+        categories = list(calendar.day_name)  
         return success("Weekly sales fetched successfully", {
             "categories": categories,
             "series": [

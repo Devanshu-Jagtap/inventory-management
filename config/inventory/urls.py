@@ -17,9 +17,8 @@ urlpatterns = [
     path('item-wise-profit/', OverallItemWiseProfitAPIView.as_view()),
     path('category-wise-profit/', CategoryWiseProfitAPIView.as_view()),
 
-    #Inventory Management
     path('inventory-management/check-inventory/',InventoryCheckAPIView.as_view()),
-    # path('inventory-management/add-inventory/',StoreItemToInventoryAPIView.as_view()),
+    
     path('inventory-management/create-inventory/',CreateInventoryAPIView.as_view()),
     path('inventory-management/update-inventory/',UpdateInventoryAPIView.as_view()),
     path('inventory-management/product-wise-total/', ProductWiseQuantityAPIView.as_view(), name='product_wise_total'),
@@ -38,7 +37,9 @@ urlpatterns = [
     path('categories/create/', CategoryAPIView.as_view(), name='category-create'),
     path('categories/update/<int:pk>/', CategoryAPIView.as_view(), name='category-update'),
     path('categories/delete/<int:pk>/', CategoryAPIView.as_view(), name='category-delete'),
-    # path('items/listview/', ItemListAPIView.as_view(), name='item-list'),
+    path('categories/all/', CategoryListAPIView.as_view()),
+    path('items/by-category/', ItemByCategoryAPIView.as_view()),
+    
     path('items/listview/', ItemAPIView.as_view(), name='item-create'),
     path('items/create/', ItemAPIView.as_view(), name='item-create'),
     path('items/update/<int:pk>/', ItemAPIView.as_view(), name='item-update'),

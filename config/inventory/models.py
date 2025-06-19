@@ -56,7 +56,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 
 
-#Master
+
 
 class Category(BaseContent):
     owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='categories',null=True, blank=True,)
@@ -187,6 +187,7 @@ class Order(BaseContent):
     ORDER_STATUS = [
         ('pending', 'Pending'),
         ('shipped', 'Shipped'),
+        ('confirmed','Confirmed')
     ]
 
     order_id = models.CharField(max_length=10, unique=True)

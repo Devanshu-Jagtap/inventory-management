@@ -78,10 +78,16 @@ class StockOutSerializer(serializers.Serializer):
     inventory_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
     reason = serializers.ChoiceField(choices=["transfer", "damage"])
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+
+class CategoryListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name']
 
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,16 +96,22 @@ class ItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['owner']
 
 
+class ItemShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = ['id', 'name']
+
 
 class CustomUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)  # don't return password
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'name', 'email', 'user_type', 'password']
+        fields = ['id', 'name', 'email', 'user_type', 'password', 'admin_owner']
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        admin_owner = self.context['request'].user.effective_admin
         user = CustomUser(**validated_data)
         user.set_password(password)  # hashes the password
         user.save()

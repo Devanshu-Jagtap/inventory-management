@@ -52,7 +52,7 @@ class LoginAPIView(APIView):
             return error("Email and password are required")
 
         user =  authenticate(request, email=email, password=password)
-        print(user)
+
 
         if user is not None:
             if not user.is_active:
@@ -78,19 +78,19 @@ class LoginAPIView(APIView):
 
 
 class OverallItemWiseProfitAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request):
        
         qs = ProfitLossReport.objects.values(
-            'inventory__item__name'
+            'item__name'
         ).annotate(
             total_profit=Sum('profit')
-        ).filter(total_profit__gte=0).order_by('inventory__item__name')
+        ).filter(total_profit__gte=0).order_by('item__name')
 
         
         data = [
             {
-                "item": entry['inventory__item__name'],
+                "item": entry['item__name'],
                 "profit": float(entry['total_profit'] or 0)
             }
             for entry in qs
