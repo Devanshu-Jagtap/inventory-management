@@ -171,6 +171,7 @@ class UpdateInventoryAPIView(APIView):
 
 
 class ProductWiseQuantityAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         items = Item.objects.all()
         data = []
@@ -189,6 +190,7 @@ class ProductWiseQuantityAPIView(APIView):
         return success("Product-wise quantity retrieved successfully", data=data)
     
 class TotalAllProductsQuantityAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         total_quantity = Inventory.objects.aggregate(
             total=Sum('current_quantity')
@@ -283,6 +285,7 @@ class CreateOrderAPIView(APIView):
 
 
 class InventoryTransferAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def post(self, request):
         serializer = StockOutSerializer(data=request.data)
         if not serializer.is_valid():
@@ -321,6 +324,7 @@ class InventoryTransferAPIView(APIView):
 
 
 class ItemsInBlockAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request, block_id):
         block = get_object_or_404(Block, id=block_id)
         inventory_items = Inventory.objects.filter(block=block).select_related('item')
@@ -435,6 +439,7 @@ class ExportTodayProfitLossCSVAPIView(APIView):
 
 
 class OrderListAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -445,6 +450,7 @@ class OrderListAPIView(APIView):
     
 
 class CustomerListAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -455,6 +461,7 @@ class CustomerListAPIView(APIView):
     
 
 class InventorySummaryAPIView(APIView):
+    # permission_classes = [IsAuthenticated]
     def get(self, request):
         
         total_stock_in = (
@@ -547,20 +554,26 @@ class WeeklySalesChartAPIView(APIView):
                 )
                 .annotate(day=TruncDate("date"))
                 .values("day")
-                .annotate(total=Sum("revenue"))
+                .annotate(
+                    total=Sum("revenue"),
+                    total_quantity=Sum("quantity")
+                )
                 .order_by("day")
             )
 
             daily_map = {sale["day"]: float(sale["total"]) for sale in sales}
 
-            data = []
-            total = 0
+            amount_data = []
+            quantity_data = []
+            total_amount = 0
+            total_quantity = 0
             for i in range(7):
                 day = start_date + timedelta(days=i)
-                amount = daily_map.get(day, 0)
-                data.append(amount)
-                total += amount
-            return data, total
+                day_data = daily_map.get(day, {"amount": 0, "quantity": 0})
+                amount_data.append(day_data["amount"])
+                quantity_data.append(day_data["quantity"])
+                total_amount += day_data["amount"]
+                total_quantity += day_data["quantity"]
 
         
         current_week_data, current_week_total = get_weekly_data(start_of_week)
@@ -573,13 +586,43 @@ class WeeklySalesChartAPIView(APIView):
             "series": [
                 {
                     "name": "Current Week",
-                    "data": current_week_data,
-                    "total": round(current_week_total, 2)
+                    "data": current_amount,
+                    "quantity": current_qty,
+                    "total": round(current_total, 2),
+                    "total_quantity": current_total_qty
                 },
                 {
                     "name": "Previous Week",
-                    "data": prev_week_data,
-                    "total": round(prev_week_total, 2)
+                    "data": prev_amount,
+                    "quantity": prev_qty,
+                    "total": round(prev_total, 2),
+                    "total_quantity": prev_total_qty
                 }
             ]
         })
+    
+
+class TopSellingProductsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.effective_admin
+
+        top_items = (
+            OrderItem.objects
+            .filter(order__owner=user)
+            .values("item__name", "item__sku")
+            .annotate(quantity_sold=Sum("quantity"))
+            .order_by("-quantity_sold")[:5]
+        )
+
+        data = [
+            {
+                "item_name": item["item__name"],
+                "sku": item["item__sku"],
+                "quantity_sold": item["quantity_sold"]
+            }
+            for item in top_items
+        ]
+
+        return success("Top selling products fetched successfully", data)

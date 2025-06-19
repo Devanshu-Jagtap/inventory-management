@@ -28,11 +28,11 @@ urlpatterns = [
     path('inventory-management/stock-out/', InventoryTransferAPIView.as_view(), name='stock-out'),
     path('inventory-management/customers/', CustomerListAPIView.as_view(), name='customer-list'),
     path('inventory-management/summary/', InventorySummaryAPIView.as_view(), name='inventory_summary'),
+    path('charts/top-selling-products/', TopSellingProductsAPIView.as_view(), name='top-selling-products'),
     
     path('charts/block-pie-chart/',BlockWiseProfitAPIView.as_view(),name='Block-pie-chart'),
     path('charts/daily-chart/',WeeklySalesChartAPIView.as_view(),name='daily-chart'),
 
-    
     path('categories/listview/', CategoryAPIView.as_view(), name='category-list'),
     path('categories/create/', CategoryAPIView.as_view(), name='category-create'),
     path('categories/update/<int:pk>/', CategoryAPIView.as_view(), name='category-update'),
@@ -55,13 +55,11 @@ urlpatterns = [
     path('warehouses/<int:pk>/', WareHouseLocationAPIView.as_view(), name='warehouse-retrieve'),
     path('warehouses/update/<int:pk>/', WareHouseLocationAPIView.as_view(), name='warehouse-update'),
     path('warehouses/delete/<int:pk>/', WareHouseLocationAPIView.as_view(), name='warehouse-delete'),
-    path('blocks/create/', BlockAPIView.as_view()),
-    path('blocks/listview/', BlockAPIView.as_view()),
-    path('blocks/update/<int:pk>/', BlockAPIView.as_view()),
-    path('blocks/delete/<int:pk>/', BlockAPIView.as_view()),
-    path('block-items/<int:block_id>/',ItemsInBlockAPIView.as_view()),
-    
-
+    path('blocks/create/', BlockAPIView.as_view(),name='block-create'),
+    path('blocks/listview/', BlockAPIView.as_view(),name='block-view'),
+    path('blocks/update/<int:pk>/', BlockAPIView.as_view(),name='block-update'),
+    path('blocks/delete/<int:pk>/', BlockAPIView.as_view(),name='block-delete'),
+    path('block-items/<int:block_id>/',ItemsInBlockAPIView.as_view(),name='block-items'),
     
 
 ]

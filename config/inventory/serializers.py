@@ -27,9 +27,6 @@ class InventoryStockInSuggestionSerializer(serializers.Serializer):
     block_id = serializers.IntegerField()
     can_store = serializers.IntegerField(min_value=1)
 
-# class InventoryStockInSerializer(serializers.Serializer):
-#     item_id = serializers.IntegerField()
-#     suggestions = InventoryStockInSuggestionSerializer(many=True)
 
 class InventoryStockInSerializer(serializers.Serializer):
     item_id = serializers.IntegerField()
